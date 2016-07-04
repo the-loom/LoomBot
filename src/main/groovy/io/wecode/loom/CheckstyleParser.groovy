@@ -1,8 +1,5 @@
 package io.wecode.loom
 
-import groovy.transform.EqualsAndHashCode
-
-@EqualsAndHashCode
 class CheckstyleParser {
 
     List parse(final def originalXML) {

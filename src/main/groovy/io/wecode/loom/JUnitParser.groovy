@@ -18,7 +18,7 @@ class JUnitParser {
                         test: test.attributes()['name'],
                         type: 'error',
                         message: it.attributes()['message'],
-                        details: it.value()[0]
+                        details: it.value()[0].split('\n')[0..5].join('\n')
                 )
             }
 
@@ -28,7 +28,7 @@ class JUnitParser {
                         test: test.attributes()['name'],
                         type: 'failure',
                         message: it.attributes()['message'],
-                        details: it.value()[0]
+                        details: it.value()[0].split('\n')[0..5].join('\n')
                 )
             }
 
@@ -42,6 +42,6 @@ class JUnitParser {
         //issues.put('score', score.normalize(8))
 
 
-        return issues
+        return [ tests: myXml.attributes()["tests"] as Integer, issues: issues ]
     }
 }

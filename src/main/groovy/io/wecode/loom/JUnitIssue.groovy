@@ -1,8 +1,5 @@
 package io.wecode.loom
 
-import groovy.transform.EqualsAndHashCode
-
-@EqualsAndHashCode
 class JUnitIssue {
 
     String classname
@@ -13,7 +10,6 @@ class JUnitIssue {
 
     @Override
     public String toString() {
-        //"[${type}] ${classname}:${test} -> '${message}'\n${details}\n"
         this.dump()
     }
 
