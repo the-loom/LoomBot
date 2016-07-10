@@ -16,7 +16,12 @@ class GithubAPI {
         getJson("/repos/${repo}/forks")
     }
 
-    static getJson(def path) {
+    static info(def repo) {
+        // docs: https://developer.github.com/v3/repos/
+        getJson("/repos/${repo}")
+    }
+
+    private static getJson(def path) {
 
         def http = new HTTPBuilder()
         http.request('https://api.github.com', Method.GET, ContentType.TEXT) { req ->

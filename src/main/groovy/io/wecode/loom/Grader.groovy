@@ -2,6 +2,9 @@ package io.wecode.loom
 
 import groovy.io.FileType
 import groovy.sql.Sql
+import groovyx.net.http.ContentType
+import groovyx.net.http.HTTPBuilder
+import groovyx.net.http.Method
 import org.apache.commons.io.FileUtils
 
 // 0. en un while eterno, o ejecutandose cada X minutos
@@ -10,12 +13,13 @@ import org.apache.commons.io.FileUtils
 
 while (true) {
 
-
     def sql = Sql.newInstance('jdbc:sqlite:loom.sqlite', 'org.sqlite.JDBC')
 
-    sql.eachRow("select * from assignments") { repo ->
+    sql.eachRow("select * from assignments") { repoInDB ->
 
-        GithubAPI.forks(repo.full_name).each { fork ->
+        def repo = GithubAPI.info(repoInDB.full_name)
+
+        GithubAPI.forks(repoInDB.full_name).each { fork ->
 
             def forksData = sql.dataSet("forks")
             if (fork.size < 512) {
@@ -23,7 +27,7 @@ while (true) {
                 // si no existe
                 if (sql.rows("select * from forks where full_name = ?", [fork.full_name]).size == 0) {
                     forksData.add(
-                            assignment_full_name: repo.full_name,
+                            assignment_full_name: repoInDB.full_name,
                             user: fork.owner.login,
                             full_name: fork.full_name,
                             repo_url: fork.git_url,
@@ -44,7 +48,7 @@ while (true) {
                 if (true || !forkInDB.tested_at || forkInDB.updated_at > forkInDB.tested_at) {
                     println "HAY QUE CORRER TESTS"
 
-                    def reporte = test(repo, forkInDB)
+                    def reporte = test(repoInDB, forkInDB, repo, fork)
 
                     // pegarle por POST a la app, para guardar el resultado del test
                     // Enviar TODOS los datos (repo, fork y reporte)
@@ -70,18 +74,18 @@ while (true) {
 
 }
 
-def test(def repo, def fork) {
+def test(def repoInDB, def forkInDB, def repoo, def forko) {
 
     def deletables = []
 
-    def canonicalCloneDir = "${repo.user}-${repo.repo}"
-    def canonicalClone = "git clone --depth 1 -b resolucion ${repo.tests_url} ${canonicalCloneDir}".execute()
+    def canonicalCloneDir = "${repoInDB.user}-${repoInDB.repo}"
+    def canonicalClone = "git clone --depth 1 -b resolucion ${repoInDB.tests_url} ${canonicalCloneDir}".execute()
     canonicalClone.waitFor()
-    deletables << new File("./${repo.user}-${repo.repo}")
+    deletables << new File("./${repoInDB.user}-${repoInDB.repo}")
 
     // clonamos
-    def solutionCloneDir = "${fork.user}-${repo.repo}-${new Date().time}"
-    def solutionClone = "git clone --depth 1 ${fork.repo_url} ${solutionCloneDir}".execute()
+    def solutionCloneDir = "${forkInDB.user}-${repoInDB.repo}-${new Date().time}"
+    def solutionClone = "git clone --depth 1 ${forkInDB.repo_url} ${solutionCloneDir}".execute()
     solutionClone.waitFor()
     deletables << new File("./${solutionCloneDir}")
 
@@ -134,37 +138,64 @@ def test(def repo, def fork) {
             // por el momento todos los tests se encuentran en el mismo archivo
             // pero no sabemos el nombre exacto
         }
-        //def notaFuncional = junitIssuesMap["score"]
 
-        println "junit"
         def junitScore = new Score(value: junitIssues["tests"] - junitIssues["issues"].size(),
                 total: junitIssues["tests"]).normalize(10)
-        //println junitIssues
 
         def myCheckstyleFile = new File("${canonicalCloneDir}/build/reports/checkstyle/main.xml")
         def checkstyleIssues = checkstyleParser.parse(myCheckstyleFile)
 
-        println "checkstyle"
         def checkstyleScore = new Score(value: Math.max(20 - checkstyleIssues.size(), 0), total: 20).normalize(10)
-        //println checkstyleIssues
-
 
         def finalScore = junitScore + checkstyleScore
 
         def report = [
-                repo: repo,
-                fork: fork,
+                parent  : new RepoDTO(repo: repoo).toMap(),
+                fork    : new RepoDTO(repo: forko).toMap(),
                 test_run: [
-                        score: finalScore,
+                        score  : finalScore,
                         results: [
-                                junitIssues,
-                                checkstyleIssues
+                                [
+                                        type      : 'junit',
+                                        score     : junitScore,
+                                        issues    : junitIssues.issues.collect { it.toMap() }
+                                ],
+                                [
+                                        type      : 'checkstyle',
+                                        score     : checkstyleScore,
+                                        issues    : checkstyleIssues.collect { it.toMap() }
+                                ]
+
                         ]
                 ]
         ]
 
-        println "Esto enviariamos"
-        println report.dump()
+        // TODO: post de prueba!
+        def http = new HTTPBuilder("http://localhost:3000/")
+
+        //try {
+
+
+            http.request(Method.POST, ContentType.JSON) {
+                uri.path = repoInDB.full_name
+                // TODO: agregar el AUTH_TOKEN en el header
+                body = report
+
+                response.success = { resp, json ->
+                    println "Success! ${resp.status}"
+                }
+
+                response.failure = { resp, json ->
+                    println "Request failed with status ${resp.status}"
+                }
+            }
+
+        /*} catch(Exception e) {
+            println e.message
+            println "recuperemos esto..."
+            sleep(30000)
+        }*/
+
 
         // TODO: falta contemplar los casos que podrian tener error
 

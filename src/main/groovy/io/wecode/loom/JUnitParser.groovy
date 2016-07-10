@@ -15,6 +15,7 @@ class JUnitParser {
             test.error.each {
                 issues << new JUnitIssue(
                         classname: test.attributes()['classname'],
+                        time: test.attributes()['time'] as Double,
                         test: test.attributes()['name'],
                         type: 'error',
                         message: it.attributes()['message'],
@@ -25,6 +26,7 @@ class JUnitParser {
             test.failure.each {
                 issues << new JUnitIssue(
                         classname: test.attributes()['classname'],
+                        time: test.attributes()['time'] as Double,
                         test: test.attributes()['name'],
                         type: 'failure',
                         message: it.attributes()['message'],

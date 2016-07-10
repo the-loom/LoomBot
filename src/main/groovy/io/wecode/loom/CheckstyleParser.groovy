@@ -12,6 +12,8 @@ class CheckstyleParser {
                 incidencias << new CheckstyleIssue(
                         file: aFile.attributes()['name'][aFile.attributes()['name'].lastIndexOf('src/')..-1],
                         line: it.attributes()['line'] as Integer,
+                        column: it.attributes()['column'] as Integer,
+                        severity: it.attributes()['severity'],
                         message: it.attributes()['message'])
             }
         }
