@@ -1,71 +1,72 @@
 package io.wecode.loom
 
 import groovy.io.FileType
-import groovy.json.JsonSlurper
 import groovy.sql.Sql
 import org.apache.commons.io.FileUtils
-
-def jsonSlurper = new JsonSlurper()
 
 // 0. en un while eterno, o ejecutandose cada X minutos
 
 // por cada tarea en el json de tareas
 
-def sql = Sql.newInstance('jdbc:sqlite:loom.sqlite', 'org.sqlite.JDBC')
+while (true) {
 
-sql.eachRow("select * from assignments") { repo ->
 
-    // docs: https://developer.github.com/v3/repos/forks/
-    def mazinger = new URL("https://api.github.com/repos/${repo.full_name}/forks").getText()
-    def forks = jsonSlurper.parseText(mazinger)
+    def sql = Sql.newInstance('jdbc:sqlite:loom.sqlite', 'org.sqlite.JDBC')
 
-    forks.each { fork ->
+    sql.eachRow("select * from assignments") { repo ->
 
-        def forksData = sql.dataSet("forks")
-        if (fork.size < 512) {
+        GithubAPI.forks(repo.full_name).each { fork ->
 
-            // si no existe
-            if (sql.rows("select * from forks where full_name = ?", [fork.full_name]).size == 0) {
-                forksData.add(
-                        assignment_full_name: repo.full_name,
-                        user: fork.owner.login,
-                        full_name: fork.full_name,
-                        repo_url: fork.git_url,
-                        updated_at: new Date().parse("YYYY-MM-dd'T'hh:mm:ss'Z'", fork.updated_at),
-                        tested_at: null
-                )
+            def forksData = sql.dataSet("forks")
+            if (fork.size < 512) {
+
+                // si no existe
+                if (sql.rows("select * from forks where full_name = ?", [fork.full_name]).size == 0) {
+                    forksData.add(
+                            assignment_full_name: repo.full_name,
+                            user: fork.owner.login,
+                            full_name: fork.full_name,
+                            repo_url: fork.git_url,
+                            updated_at: new Date().parse("YYYY-MM-dd'T'hh:mm:ss'Z'", fork.updated_at),
+                            tested_at: null
+                    )
+                } else {
+                    println "YA EXISTE!"
+                    sql.executeUpdate("update forks set updated_at = ? where full_name = ?",
+                            [
+                                    new Date().parse("YYYY-MM-dd'T'hh:mm:ss'Z'", fork.updated_at),
+                                    fork.full_name,
+                            ])
+                }
+
+                // si es mas nuevo, o si tiene una actualizacion, correr tests
+                def forkInDB = sql.firstRow("select * from forks where full_name = ?", [fork.full_name])
+                if (true || !forkInDB.tested_at || forkInDB.updated_at > forkInDB.tested_at) {
+                    println "HAY QUE CORRER TESTS"
+
+                    def reporte = test(repo, forkInDB)
+
+                    // pegarle por POST a la app, para guardar el resultado del test
+                    // Enviar TODOS los datos (repo, fork y reporte)
+
+                    // se marca la hora de la ejecucion
+                    sql.executeUpdate("update forks set tested_at = ? where full_name = ?",
+                            [new Date(), fork.full_name])
+                } else {
+                    println "NO HAY QUE CORRER NADA. FIN!"
+                }
+
             } else {
-                println "YA EXISTE!"
-                sql.executeUpdate("update forks set updated_at = ? where full_name = ?",
-                        [
-                                new Date().parse("YYYY-MM-dd'T'hh:mm:ss'Z'", fork.updated_at),
-                                fork.full_name,
-                        ])
+
+                println "TOO BIG REPO!"
+
             }
-
-            // si es mas nuevo, o si tiene una actualizacion, correr tests
-            def forkInDB = sql.firstRow("select * from forks where full_name = ?", [fork.full_name])
-            if (true || !forkInDB.tested_at || forkInDB.updated_at > forkInDB.tested_at) {
-                println "HAY QUE CORRER TESTS"
-
-                def reporte = test(repo, forkInDB)
-
-                // pegarle por POST a la app, para guardar el resultado del test
-                // Enviar TODOS los datos (repo, fork y reporte)
-
-                // se marca la hora de la ejecucion
-                sql.executeUpdate("update forks set tested_at = ? where full_name = ?",
-                        [new Date(), fork.full_name])
-            } else {
-                println "NO HAY QUE CORRER NADA. FIN!"
-            }
-
-        } else {
-
-            println "TOO BIG REPO!"
-
         }
+
     }
+
+    println 'Durmamos 10 segunditos...'
+    sleep(10000)
 
 }
 
@@ -136,39 +137,36 @@ def test(def repo, def fork) {
         //def notaFuncional = junitIssuesMap["score"]
 
         println "junit"
-        println new Score(value: junitIssues["tests"] - junitIssues["issues"].size(),
+        def junitScore = new Score(value: junitIssues["tests"] - junitIssues["issues"].size(),
                 total: junitIssues["tests"]).normalize(10)
+        //println junitIssues
 
         def myCheckstyleFile = new File("${canonicalCloneDir}/build/reports/checkstyle/main.xml")
         def checkstyleIssues = checkstyleParser.parse(myCheckstyleFile)
 
         println "checkstyle"
-        println new Score(value: Math.max(20 - checkstyleIssues.size(), 0), total: 20).normalize(10)
+        def checkstyleScore = new Score(value: Math.max(20 - checkstyleIssues.size(), 0), total: 20).normalize(10)
         //println checkstyleIssues
 
 
-        // armar reporte
+        def finalScore = junitScore + checkstyleScore
 
-        // devolverlo
+        def report = [
+                repo: repo,
+                fork: fork,
+                test_run: [
+                        score: finalScore,
+                        results: [
+                                junitIssues,
+                                checkstyleIssues
+                        ]
+                ]
+        ]
 
-        //def notaEstilo = new Score((20 - checkstyleIssuesList.size())>0?((20 - checkstyleIssuesList.size())/10):0, 2)
+        println "Esto enviariamos"
+        println report.dump()
 
-        //def nota = notaFuncional + notaEstilo
-
-/*        def reporte = '=== Reporte completo ===\n'
-        reporte += "Nota general: ${nota.normalize()}\n"
-        reporte += "\tNota funcional: ${notaFuncional}\n"
-        reporte += "\tNota de estilo: ${notaEstilo}\n"
-        reporte += '\n\n******************'
-        reporte += '\nAnálisis funcional\n'
-        reporte += '******************\n'
-        reporte += reportarIssuesJUnit(junitIssuesMap)
-        reporte += '\n\n******************'
-        reporte += "\nAnálisis de estilo\n"
-        reporte += '******************\n'
-        reporte += reportarIssuesCheckstyle(checkstyleIssuesList)
-
-        completeMapWithQualifications(correctionsMap, nota, reporte)*/
+        // TODO: falta contemplar los casos que podrian tener error
 
     } catch (FileNotFoundException e) {
         e.printStackTrace()
