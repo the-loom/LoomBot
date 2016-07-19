@@ -54,6 +54,7 @@ class GraderScript {
 
                         // si es mas nuevo, o si tiene una actualizacion, correr tests
                         def forkInDB = sql.firstRow("select * from forks where full_name = ?", [fork.full_name])
+                        // TODO: quitar este "true", claramente :)
                         if (true || !forkInDB.tested_at || forkInDB.updated_at > forkInDB.tested_at) {
                             log.info "ejecutando tests..."
 
@@ -73,18 +74,16 @@ class GraderScript {
 
             }
 
-            def pause = 10000
-            log.info "en pausa por ${pause / 1000} segundos... zZzZ"
+            def pause = 10_000
+            log.info "en pausa por ${pause / 1_000} segundos... zZzZ"
             sleep(pause)
-
         }
-
-
     }
 
     def test(def repoInDB, def forkInDB, def repoo, def forko) {
 
         def deletables = []
+        // TODO: poner todos los clones en un directorio aparte, asi no quedan sueltos en el proyecto
 
         def canonicalCloneDir = "${repoInDB.user}-${repoInDB.repo}"
         def canonicalClone = "git clone --depth 1 -b resolucion ${repoInDB.tests_url} ${canonicalCloneDir}".execute()
@@ -106,7 +105,6 @@ class GraderScript {
         }
 
         // mergeamos con los tests
-
         try {
             // reemplazamos el codigo del repo de referencia con el codigo del fork
             (new File("./${canonicalCloneDir}/src/main/java/")).deleteDir()
@@ -217,12 +215,12 @@ class GraderScript {
     }
 
     private void enviarReporte(repoInDB, report) {
-        def http = new HTTPBuilder("http://localhost:3000/") // TODO: cambiar URL
+        def http = new HTTPBuilder("http://localhost:3000/") // TODO: cambiar URL, tomar de entorno/properties?
 
         try {
             http.request(Method.POST, ContentType.JSON) {
                 uri.path = repoInDB.full_name
-                headers.'x-api-key' = 'un token bonito' // TODO: tomarlo del entorno
+                headers.'x-api-key' = System.getenv('GRADER_TOKEN')
                 body = report
 
                 response.success = { resp, json ->
