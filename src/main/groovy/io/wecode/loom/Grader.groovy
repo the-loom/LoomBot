@@ -7,6 +7,7 @@ import groovyx.net.http.ContentType
 import groovyx.net.http.HTTPBuilder
 import groovyx.net.http.Method
 import org.apache.commons.io.FileUtils
+import org.apache.http.conn.HttpHostConnectException
 
 // 0. en un while eterno, o ejecutandose cada X minutos
 
@@ -183,7 +184,7 @@ class GraderScript {
             borrarArchivos(deletables)
             return
         } catch (Exception e) {
-            log.info e.stackTrace
+            log.error("Falla la corrección!", e)
             borrarArchivos(deletables)
         }
 
@@ -218,18 +219,25 @@ class GraderScript {
     private void enviarReporte(repoInDB, report) {
         def http = new HTTPBuilder("http://localhost:3000/") // TODO: cambiar URL
 
-        http.request(Method.POST, ContentType.JSON) {
-            uri.path = repoInDB.full_name
-            headers.'x-api-key' = 'un token bonito' // TODO: tomarlo del entorno
-            body = report
+        try {
+            http.request(Method.POST, ContentType.JSON) {
+                uri.path = repoInDB.full_name
+                headers.'x-api-key' = 'un token bonito' // TODO: tomarlo del entorno
+                body = report
 
-            response.success = { resp, json ->
-                log.info "Transferencia de correccion exitosa: ${resp.status}"
-            }
+                response.success = { resp, json ->
+                    log.info "Transferencia de correccion exitosa: ${resp.status}"
+                }
 
-            response.failure = { resp, json ->
-                log.info "Transferencia de correccion fallida: ${resp.status}"
+                response.failure = { resp, json ->
+                    log.info "Transferencia de correccion fallida: ${resp.status}"
+                }
             }
+        } catch (HttpHostConnectException e) {
+            log.error("Fallo en la conexión", e)
+            log.info "Reintentando en 5 minutos..."
+            sleep(5 * 60_000)
+            enviarReporte(repoInDB, report)
         }
     }
 
