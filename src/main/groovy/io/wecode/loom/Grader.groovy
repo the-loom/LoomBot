@@ -18,8 +18,11 @@ class GraderScript {
 
     def execute() {
 
-        // esto corta la ejecución si ya hay un grader funcionando en el sistema. Quitar si se paraleliza
+        // esto corta la ejecución si ya hay un grader funcionando en el sistema.
+        // quitar si se paraleliza
         prevenirDobleEjecucion()
+
+        PropertiesHolder.instance.load()
 
         while (true) {
 
@@ -233,12 +236,13 @@ class GraderScript {
     }
 
     private void enviarReporte(repoInDB, report) {
-        def http = new HTTPBuilder("http://localhost:3000/") // TODO: cambiar URL, tomar de entorno/properties?
+
+        def http = new HTTPBuilder(PropertiesHolder.instance.properties.DASHBOARD_HOST)
 
         try {
             http.request(Method.POST, ContentType.JSON) {
                 uri.path = repoInDB.full_name
-                headers.'x-api-key' = System.getenv('GRADER_TOKEN')
+                headers.'x-api-key' = PropertiesHolder.instance.properties.GRADER_TOKEN
                 body = report
 
                 response.success = { resp, json ->

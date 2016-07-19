@@ -27,8 +27,8 @@ class GithubAPI {
         http.request('https://api.github.com', Method.GET, ContentType.TEXT) { req ->
             uri.path = path
             uri.query = [
-                    client_id    : System.getenv('GITHUB_ID'),
-                    client_secret: System.getenv('GITHUB_SECRET')
+                    client_id    : PropertiesHolder.instance.properties.GITHUB_ID,
+                    client_secret: PropertiesHolder.instance.properties.GITHUB_SECRET
             ]
             headers.'User-Agent' = 'Loom Grader'
             headers.Accept = 'application/json'
