@@ -17,6 +17,10 @@ import org.apache.http.conn.HttpHostConnectException
 class GraderScript {
 
     def execute() {
+
+        // esto corta la ejecución si ya hay un grader funcionando en el sistema. Quitar si se paraleliza
+        prevenirDobleEjecucion()
+
         while (true) {
 
             def sql = Sql.newInstance('jdbc:sqlite:loom.sqlite', 'org.sqlite.JDBC')
@@ -77,6 +81,20 @@ class GraderScript {
             def pause = 10_000
             log.info "en pausa por ${pause / 1_000} segundos... zZzZ"
             sleep(pause)
+        }
+    }
+
+    private void prevenirDobleEjecucion() {
+        final int PORT = 29432
+        ServerSocket s
+        try {
+            s = new ServerSocket(PORT, 10, InetAddress.getLocalHost());
+        } catch (UnknownHostException e) {
+            // no debería suceder para localhost
+        } catch (IOException e) {
+            // si el demonio está ejecutándose, no se vuelve a ejecutar
+            println "El demonio ya está en ejecución. Cerrando Grader..."
+            System.exit(0);
         }
     }
 
