@@ -105,7 +105,7 @@ class GraderScript {
 
         // compilamos
 
-        def compileMerge = ['docker', 'run', '--rm', '-v', (System.getProperty("user.dir") + '/' + canonicalCloneDir + ':/home/gradle/project'), '-w', '/home/gradle/project', 'gradle:4.4.1-jdk7-alpine', 'gradle', 'compileJava'].execute()
+        def compileMerge = ['docker', 'run', '--rm', '-v', (System.getProperty("user.dir") + '/' + canonicalCloneDir + ':/home/gradle/project'), '-w', '/home/gradle/project', 'gradle:4.4.1-jdk8-alpine', 'gradle', 'compileJava'].execute()
         compileMerge.waitFor()
 
         // Si no compila el código
@@ -117,7 +117,7 @@ class GraderScript {
         }
 
         // Ejecutamos las pruebas
-        def testsExecution = ['docker', 'run', '--rm', '-v', (System.getProperty("user.dir") + '/' + canonicalCloneDir + ':/home/gradle/project'), '-w', '/home/gradle/project', 'gradle:4.4.1-jdk7-alpine', 'gradle'].execute()
+        def testsExecution = ['docker', 'run', '--rm', '-v', (System.getProperty("user.dir") + '/' + canonicalCloneDir + ':/home/gradle/project'), '-w', '/home/gradle/project', 'gradle:4.4.1-jdk8-alpine', 'gradle'].execute()
         testsExecution.waitFor()
 
         try {
