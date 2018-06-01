@@ -63,6 +63,7 @@ class GraderScript {
 
         log.info "Clonando repositorio ${repo.git_url}"
         def canonicalCloneDir = "${repo.user}-${repo.name}"
+        log.info "git clone --depth 1 -b resolucion ${repo.git_url} ${canonicalCloneDir}".toString()
         def canonicalClone = "git clone --depth 1 -b resolucion ${repo.git_url} ${canonicalCloneDir}".execute()
         canonicalClone.waitFor()
         log.info "Repo clonado correctamente"
@@ -103,6 +104,7 @@ class GraderScript {
         log.info "Se reemplazó el código del fork dentro del repo"
 
         // compilamos
+
         def compileMerge = ['docker', 'run', '--rm', '-v', (System.getProperty("user.dir") + '/' + canonicalCloneDir + ':/home/gradle/project'), '-w', '/home/gradle/project', 'gradle:alpine', 'gradle', 'compileJava'].execute()
         compileMerge.waitFor()
 
